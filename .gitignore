@@ -1,10 +1,13 @@
 node_modules/
-.env
-.env.local
-.env.dev
-.env.prod
 uploads/
 dist/
 build/
 *.log
 .DS_Store
+
+# Backend secrets (keep .env.example)
+backend/.env
+backend/.env.local
+backend/.env.dev
+backend/.env.prod
+!backend/.env.example

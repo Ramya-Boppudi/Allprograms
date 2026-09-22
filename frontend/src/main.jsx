@@ -10,11 +10,13 @@ import { AuthProvider } from './context/AuthContext';
 import { BrandingProvider } from './context/BrandingContext';
 import './index.css';
 
+const basename = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || '/';
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <BrowserRouter>
+      <BrowserRouter basename={basename === '/' ? undefined : basename}>
         <BrandingProvider>
           <AuthProvider>
             <App />

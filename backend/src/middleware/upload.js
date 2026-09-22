@@ -29,7 +29,7 @@ const upload = multer({
 });
 
 function attachmentsUpload(req, res, next) {
-  upload.array('attachments', 5)(req, res, (err) => {
+  upload.any()(req, res, (err) => {
     if (!err) return next();
     err.statusCode = err.statusCode || 400;
     if (err.code === 'LIMIT_FILE_SIZE') {

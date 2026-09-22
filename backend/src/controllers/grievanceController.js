@@ -340,9 +340,23 @@ exports.getById = async (req, res, next) => {
   }
 };
 
+function normalizeReferenceNo(req) {
+  const raw = req.query.referenceNo || req.query.ref || req.params.referenceNo || req.params[0] || '';
+  let ref = String(raw).trim();
+  try {
+    ref = decodeURIComponent(ref);
+  } catch {
+    /* already decoded */
+  }
+  return ref.trim();
+}
+
 exports.getByReference = async (req, res, next) => {
   try {
-    const ref = String(req.params.referenceNo || '').trim();
+    const ref = normalizeReferenceNo(req);
+    if (!ref) {
+      return res.status(400).json({ success: false, message: 'Reference ID is required' });
+    }
     const [rows] = await pool.query(
       `SELECT g.id, g.reference_no, g.citizen_name, g.citizen_mobile, g.taluk,
               g.description, g.status, g.stage, g.action_taken, g.due_date,

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
+import { assetUrl } from '../config/apiBase';
 
 const BrandingContext = createContext({
   boardLogoUrl: null,
@@ -18,8 +19,8 @@ export function BrandingProvider({ children }) {
         const list = data.data?.logos || [];
         const byCode = Object.fromEntries(list.map((logo) => [logo.code, logo.url]));
         setLogos({
-          boardLogoUrl: byCode.board_logo || null,
-          stateEmblemUrl: byCode.state_emblem || null,
+          boardLogoUrl: byCode.board_logo ? assetUrl(byCode.board_logo) : null,
+          stateEmblemUrl: byCode.state_emblem ? assetUrl(byCode.state_emblem) : null,
           loaded: true,
         });
       })

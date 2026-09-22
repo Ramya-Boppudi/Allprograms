@@ -4,9 +4,10 @@
   "description": "WAQF Board Public Grievance Redressal Portal - API",
   "main": "src/server.js",
   "scripts": {
-    "start": "nodemon src/server.js",
+    "start": "cross-env NODE_ENV=local nodemon src/server.js",
     "dev": "cross-env NODE_ENV=local nodemon src/server.js",
     "start:local": "cross-env NODE_ENV=local nodemon src/server.js",
+    "start:dev": "cross-env NODE_ENV=dev node src/server.js",
     "init-db": "cross-env NODE_ENV=local node scripts/initDb.js"
   },
   "dependencies": {

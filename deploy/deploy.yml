@@ -1,0 +1,35 @@
+name: Test Server Full Stack Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Pull Code
+        uses: actions/checkout@v3
+
+      - name: 📦 Build and Copy Frontend
+        run: |
+          cd frontend 
+          npm install
+          CI=false npm run build
+          # Ensure the folder exists..
+          mkdir -p /home/userver/grievance/frontend/
+          cp -r build/* /home/userver/grievance/frontend/
+
+      - name: 🚀 Copy and Start Backend
+        run: |
+          cd backend
+          npm install
+          # 1. Ensure the folder exists
+          mkdir -p /home/userver/grievance/backend
+          # 2. Sync the files
+          cp -r . /home/userver/grievance/backend/
+          # 3. Restart the server with PM2
+          pm2 delete academics_backend || true
+          pm2 start /home/userver/grievance/backend/src/server.js --name academics_backend
+          pm2 save

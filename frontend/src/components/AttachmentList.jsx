@@ -7,6 +7,7 @@ import ImageIcon from '@mui/icons-material/Image';
 import DescriptionIcon from '@mui/icons-material/Description';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import DownloadIcon from '@mui/icons-material/Download';
+import { assetUrl } from '../config/apiBase';
 
 function fileIcon(file) {
   const name = (file.original_name || '').toLowerCase();
@@ -45,6 +46,7 @@ export default function AttachmentList({ attachments = [] }) {
       <List disablePadding>
         {attachments.map((file, index) => {
           const size = formatSize(file.file_size);
+          const href = assetUrl(file.file_path);
           return (
             <ListItem
               key={file.id}
@@ -53,7 +55,7 @@ export default function AttachmentList({ attachments = [] }) {
                 <Tooltip title="Open / download">
                   <IconButton
                     edge="end"
-                    href={file.file_path}
+                    href={href}
                     target="_blank"
                     rel="noreferrer"
                     color="primary"
@@ -69,7 +71,7 @@ export default function AttachmentList({ attachments = [] }) {
                 primary={
                   <Typography
                     component="a"
-                    href={file.file_path}
+                    href={href}
                     target="_blank"
                     rel="noreferrer"
                     fontWeight={700}

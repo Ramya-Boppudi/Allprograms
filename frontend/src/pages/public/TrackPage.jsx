@@ -19,7 +19,9 @@ export default function TrackPage() {
     if (!value.trim()) return;
     setError('');
     try {
-      const { data: res } = await api.get(`/grievances/track/${encodeURIComponent(value.trim())}`);
+      const { data: res } = await api.get('/grievances/track', {
+        params: { referenceNo: value.trim() },
+      });
       setData(res.data);
     } catch (err) {
       setData(null);
