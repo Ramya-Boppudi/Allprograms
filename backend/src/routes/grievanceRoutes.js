@@ -1,7 +1,9 @@
 const express = require('express');
 const ctrl = require('../controllers/grievanceController');
-const { protectStaff, protectCitizen, optionalCitizen } = require('../middleware/auth');
+const paymentCtrl = require('../controllers/paymentController');
+const { protectStaff, protectCitizen, optionalCitizen, authorize } = require('../middleware/auth');
 const { attachmentsUpload } = require('../middleware/upload');
+const { REGISTER_ROLES } = require('../constants/roles');
 
 const router = express.Router();
 
@@ -12,7 +14,11 @@ router.get('/public/mine', protectCitizen, ctrl.myPublic);
 
 router.get('/', protectStaff, ctrl.list);
 router.get('/dashboard', protectStaff, ctrl.dashboard);
-router.post('/', protectStaff, attachmentsUpload, ctrl.create);
+router.post('/register/send-otp', protectStaff, authorize(...REGISTER_ROLES), ctrl.sendRegisterOtp);
+router.post('/register/verify-otp', protectStaff, authorize(...REGISTER_ROLES), ctrl.verifyRegisterOtp);
+router.post('/', protectStaff, authorize(...REGISTER_ROLES), attachmentsUpload, ctrl.create);
+router.get('/:id(\\d+)/payment', protectStaff, paymentCtrl.getOrCreate);
+router.post('/:id(\\d+)/payment/confirm', protectStaff, paymentCtrl.confirmForGrievance);
 router.get('/:id(\\d+)', protectStaff, ctrl.getById);
 router.post('/:id(\\d+)/attachments', protectStaff, attachmentsUpload, ctrl.addAttachments);
 router.post('/:id(\\d+)/forward-to-pro', protectStaff, ctrl.forwardToPro);

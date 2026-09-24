@@ -3,7 +3,6 @@ import {
   Box, Button, Card, CardContent, Grid, TextField, Typography,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import AssignmentIcon from '@mui/icons-material/Assignment';
 import SearchIcon from '@mui/icons-material/Search';
 import LoginIcon from '@mui/icons-material/Login';
 
@@ -14,7 +13,7 @@ export default function HomePage() {
     { n: '1', t: 'Register', d: 'Officials (or the public) save the concern. A Reference ID is generated.' },
     { n: '2', t: 'Forward to PRO', d: 'All official logins except PRO send the grievance to the Public Relation Officer.' },
     { n: '3', t: 'Assign division', d: 'PRO forwards it to the concerned Divisional Manager (1–5).' },
-    { n: '4', t: '10-day action', d: 'The Divisional Manager records Action Taken and sends it back to PRO.' },
+    { n: '4', t: '30-day action', d: 'The Divisional Manager records Action Taken and sends it back to PRO.' },
     { n: '5', t: 'Complete', d: 'PRO accepts the action, or reverts it. The public is alerted at every stage.' },
   ], []);
 
@@ -28,7 +27,7 @@ export default function HomePage() {
             Statuses: <b>Created</b>, <b>Pending</b>, <b>Completed</b>.
           </Typography>
           <Typography sx={{ mt: 1, color: '#f6e27a' }}>
-            ದೂರು ದಾಖಲಿಸಿ · ಉಲ್ಲೇಖ ಸಂಖ್ಯೆಯಿಂದ ಟ್ರ್ಯಾಕ್ ಮಾಡಿ · 10 ದಿನಗಳಲ್ಲಿ ಕ್ರಮ
+            ದೂರು ದಾಖಲಿಸಿ · ಉಲ್ಲೇಖ ಸಂಖ್ಯೆಯಿಂದ ಟ್ರ್ಯಾಕ್ ಮಾಡಿ · 30 ದಿನಗಳಲ್ಲಿ ಕ್ರಮ
           </Typography>
           <Box mt={3} display="flex" gap={1} flexWrap="wrap">
             <TextField
@@ -51,20 +50,8 @@ export default function HomePage() {
       </Card>
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card>
-            <CardContent>
-              <AssignmentIcon color="primary" />
-              <Typography variant="h6">File a grievance</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Login with mobile OTP, then submit name, district, taluk and concern.
-              </Typography>
-              <Button variant="contained" onClick={() => navigate('/file')}>ದೂರು ದಾಖಲಿಸಿ</Button>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card sx={{ height: '100%' }}>
             <CardContent>
               <SearchIcon color="primary" />
               <Typography variant="h6">Track by Reference ID</Typography>
@@ -75,8 +62,8 @@ export default function HomePage() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card sx={{ height: '100%' }}>
             <CardContent>
               <LoginIcon color="primary" />
               <Typography variant="h6">Officials</Typography>

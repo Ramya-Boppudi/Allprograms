@@ -31,6 +31,7 @@ npm start
 | Chief Accounts Officer | cao@ksba.karnataka.gov.in |
 | Assistant Secretary | asst.secretary@ksba.karnataka.gov.in |
 | PRO | pro@ksba.karnataka.gov.in |
+| Admin 1–5 | admin1@ksba.karnataka.gov.in … admin5@ksba.karnataka.gov.in |
 | Divisional Manager 1–5 | dm1@ksba.karnataka.gov.in … dm5@ksba.karnataka.gov.in |
 
 Public OTP (until SMS gateway): **123456**
@@ -41,7 +42,7 @@ Public OTP (until SMS gateway): **123456**
 2. All official logins **except PRO** click **Forward to PRO** → status **Pending**.
 3. PRO forwards to a Divisional Manager (Division 1–5 placeholder names).
 4. Public and the DM are notified (in-portal + email if present; SMS is stubbed in the API log).
-5. DM has **10 days** to enter **Action Taken** and send it back to PRO.
+5. DM has **30 days** to enter **Action Taken** and send it back to PRO.
 6. PRO **completes** or **reverts** to the DM.
 7. Public can track by Reference ID. Dashboard pie chart shows Created / Pending / Completed.
 

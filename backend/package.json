@@ -8,7 +8,9 @@
     "dev": "cross-env NODE_ENV=local nodemon src/server.js",
     "start:local": "cross-env NODE_ENV=local nodemon src/server.js",
     "start:dev": "cross-env NODE_ENV=dev node src/server.js",
-    "init-db": "cross-env NODE_ENV=local node scripts/initDb.js"
+    "init-db": "cross-env NODE_ENV=local node scripts/initDb.js",
+    "seed-admins": "cross-env NODE_ENV=local node scripts/seedAdmins.js",
+    "seed-admins:dev": "cross-env NODE_ENV=dev node scripts/seedAdmins.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

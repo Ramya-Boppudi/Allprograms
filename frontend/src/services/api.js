@@ -13,8 +13,11 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('ksba_token');
-      localStorage.removeItem('ksba_auth');
+      const url = String(err.config?.url || '');
+      if (!url.includes('/public/auth/')) {
+        localStorage.removeItem('ksba_token');
+        localStorage.removeItem('ksba_auth');
+      }
     }
     return Promise.reject(err);
   }

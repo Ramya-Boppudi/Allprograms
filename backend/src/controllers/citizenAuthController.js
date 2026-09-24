@@ -44,7 +44,10 @@ exports.verifyOtp = async (req, res, next) => {
     if (!rows.length) {
       return res.status(401).json({ success: false, message: 'Invalid or expired OTP' });
     }
-    await pool.query('UPDATE otp_challenges SET verified = 1 WHERE id = ?', [rows[0].id]);
+    await pool.query(
+      'UPDATE otp_challenges SET verified = 1, expires_at = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE id = ?',
+      [rows[0].id]
+    );
 
     const [existing] = await pool.query('SELECT * FROM citizens WHERE mobile = ?', [mobile]);
     let citizen;

@@ -111,6 +111,7 @@ async function main() {
       fee_applicable TINYINT(1) NOT NULL DEFAULT 0,
       fee_amount DECIMAL(10,2) NOT NULL DEFAULT 10.00,
       fee_collected TINYINT(1) NOT NULL DEFAULT 0,
+      fee_transaction_id VARCHAR(80) NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CONSTRAINT fk_g_district FOREIGN KEY (district_id) REFERENCES districts(id),
@@ -158,6 +159,22 @@ async function main() {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT fk_n_staff FOREIGN KEY (staff_user_id) REFERENCES staff_users(id),
       CONSTRAINT fk_n_g FOREIGN KEY (grievance_id) REFERENCES grievances(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS grievance_payments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      grievance_id INT NOT NULL,
+      order_ref VARCHAR(40) NOT NULL UNIQUE,
+      amount DECIMAL(10,2) NOT NULL,
+      status ENUM('PENDING','PAID','EXPIRED','CANCELLED') NOT NULL DEFAULT 'PENDING',
+      upi_link TEXT NOT NULL,
+      pay_url VARCHAR(500) NOT NULL,
+      transaction_id VARCHAR(80) NULL,
+      payer_vpa VARCHAR(80) NULL,
+      paid_at DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_pay_g FOREIGN KEY (grievance_id) REFERENCES grievances(id)
     );
 
     CREATE TABLE IF NOT EXISTS otp_challenges (
@@ -228,6 +245,11 @@ async function main() {
     { name: 'Chief Accounts Officer, KSBA', email: 'cao@ksba.karnataka.gov.in', role: 'cao' },
     { name: 'Assistant Secretary, KSBA', email: 'asst.secretary@ksba.karnataka.gov.in', role: 'asst_secretary' },
     { name: 'Public Relation Officer, KSBA', email: 'pro@ksba.karnataka.gov.in', role: 'pro' },
+    { name: 'Admin 1', email: 'admin1@ksba.karnataka.gov.in', role: 'admin' },
+    { name: 'Admin 2', email: 'admin2@ksba.karnataka.gov.in', role: 'admin' },
+    { name: 'Admin 3', email: 'admin3@ksba.karnataka.gov.in', role: 'admin' },
+    { name: 'Admin 4', email: 'admin4@ksba.karnataka.gov.in', role: 'admin' },
+    { name: 'Admin 5', email: 'admin5@ksba.karnataka.gov.in', role: 'admin' },
     { name: 'Divisional Manager 1', email: 'dm1@ksba.karnataka.gov.in', role: 'divisional_manager', division: 1 },
     { name: 'Divisional Manager 2', email: 'dm2@ksba.karnataka.gov.in', role: 'divisional_manager', division: 2 },
     { name: 'Divisional Manager 3', email: 'dm3@ksba.karnataka.gov.in', role: 'divisional_manager', division: 3 },

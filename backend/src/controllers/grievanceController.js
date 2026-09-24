@@ -5,12 +5,10 @@ const {
   addEvent,
   notify,
 } = require('../services/notificationService');
+const { isRegistrar, canSeeAll } = require('../constants/roles');
+const { isFeePaid, paymentMode, getLatestPayment, serializePayment } = require('../services/paymentService');
 
-const HO_ROLES = ['chairman', 'ceo', 'aceo', 'cao', 'asst_secretary', 'pro'];
-
-function canSeeAll(role) {
-  return HO_ROLES.includes(role);
-}
+const DEV_OTP = process.env.DEV_OTP || '123456';
 
 async function nextReferenceNo(conn) {
   const year = new Date().getFullYear();
@@ -72,7 +70,8 @@ async function loadGrievance(id) {
             gt.name AS grievance_type_name,
             dv.name AS division_name,
             dm.name AS assigned_dm_name,
-            cr.name AS created_by_name
+            cr.name AS created_by_name,
+            cr.role_code AS created_by_role
      FROM grievances g
      JOIN districts dt ON dt.id = g.district_id
      JOIN grievance_types gt ON gt.id = g.grievance_type_id
@@ -87,8 +86,30 @@ async function loadGrievance(id) {
   return row;
 }
 
+function applyStaffScope(user, where, params, alias = 'g') {
+  if (canSeeAll(user.role_code)) return { where, params };
+  if (isRegistrar(user.role_code)) {
+    return { where: `${where} AND ${alias}.created_by_staff_id = ?`, params: [...params, user.id] };
+  }
+  if (user.role_code === 'divisional_manager') {
+    return {
+      where: `${where} AND (${alias}.assigned_dm_id = ? OR ${alias}.division_id = ? OR ${alias}.created_by_staff_id = ?)`,
+      params: [...params, user.id, user.division_id, user.id],
+    };
+  }
+  return { where: `${where} AND 1=0`, params };
+}
+
 function assertAccess(user, g) {
   if (canSeeAll(user.role_code)) return;
+  if (isRegistrar(user.role_code)) {
+    if (Number(g.created_by_staff_id) !== Number(user.id)) {
+      const err = new Error('You can only view grievances you registered');
+      err.statusCode = 403;
+      throw err;
+    }
+    return;
+  }
   if (user.role_code === 'divisional_manager') {
     const mine = g.assigned_dm_id === user.id || g.division_id === user.division_id || g.created_by_staff_id === user.id;
     if (!mine) {
@@ -98,6 +119,71 @@ function assertAccess(user, g) {
     }
   }
 }
+
+async function requireVerifiedRegisterOtp(mobile) {
+  const [rows] = await pool.query(
+    `SELECT id FROM otp_challenges
+     WHERE mobile = ? AND verified = 1 AND expires_at > NOW()
+     ORDER BY id DESC LIMIT 1`,
+    [mobile]
+  );
+  if (!rows.length) {
+    const err = new Error('Verify the citizen mobile number with OTP before registering');
+    err.statusCode = 400;
+    throw err;
+  }
+}
+
+exports.sendRegisterOtp = async (req, res, next) => {
+  try {
+    const mobile = String(req.body.mobile || '').replace(/\D/g, '');
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      return res.status(400).json({ success: false, message: 'Enter a valid 10-digit Indian mobile number' });
+    }
+    const expires = new Date(Date.now() + 10 * 60 * 1000);
+    await pool.query(
+      'INSERT INTO otp_challenges (mobile, otp, expires_at) VALUES (?, ?, ?)',
+      [mobile, DEV_OTP, expires]
+    );
+    res.json({
+      success: true,
+      message: `OTP sent. For this first version use ${DEV_OTP}.`,
+      devOtp: DEV_OTP,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.verifyRegisterOtp = async (req, res, next) => {
+  try {
+    const mobile = String(req.body.mobile || '').replace(/\D/g, '');
+    const otp = String(req.body.otp || '').trim();
+    if (!/^[6-9]\d{9}$/.test(mobile) || !otp) {
+      return res.status(400).json({ success: false, message: 'Mobile and OTP are required' });
+    }
+    const [rows] = await pool.query(
+      `SELECT * FROM otp_challenges
+       WHERE mobile = ? AND otp = ? AND verified = 0 AND expires_at > NOW()
+       ORDER BY id DESC LIMIT 1`,
+      [mobile, otp]
+    );
+    if (!rows.length) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+    await pool.query(
+      'UPDATE otp_challenges SET verified = 1, expires_at = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE id = ?',
+      [rows[0].id]
+    );
+    res.json({
+      success: true,
+      mobile,
+      message: 'Mobile verified. Continue with grievance details.',
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
 exports.create = async (req, res, next) => {
   const conn = await pool.getConnection();
@@ -119,6 +205,16 @@ exports.create = async (req, res, next) => {
         success: false,
         message: 'Name, valid mobile, district, taluk, grievance type and description are required',
       });
+    }
+
+    if (isStaff) {
+      if (!isRegistrar(req.user.role_code)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only Admin 1–5 can register grievances',
+        });
+      }
+      await requireVerifiedRegisterOtp(mobile);
     }
 
     const isPro = isStaff && req.user.role_code === 'pro';
@@ -181,13 +277,9 @@ exports.create = async (req, res, next) => {
 exports.list = async (req, res, next) => {
   try {
     const { status, stage, q, division_id } = req.query;
-    const params = [];
+    let params = [];
     let where = 'WHERE 1=1';
-
-    if (req.user.role_code === 'divisional_manager') {
-      where += ' AND (g.assigned_dm_id = ? OR g.division_id = ? OR g.created_by_staff_id = ?)';
-      params.push(req.user.id, req.user.division_id, req.user.id);
-    }
+    ({ where, params } = applyStaffScope(req.user, where, params));
     if (status) {
       where += ' AND g.status = ?';
       params.push(status);
@@ -196,7 +288,9 @@ exports.list = async (req, res, next) => {
       where += ' AND g.stage = ?';
       params.push(stage);
     }
-    if (division_id) {
+    if (division_id === 'unassigned') {
+      where += ' AND g.division_id IS NULL';
+    } else if (division_id) {
       where += ' AND g.division_id = ?';
       params.push(division_id);
     }
@@ -211,7 +305,13 @@ exports.list = async (req, res, next) => {
               gt.name AS grievance_type_name,
               dv.name AS division_name,
               dm.name AS assigned_dm_name,
-              cr.name AS created_by_name
+              cr.name AS created_by_name,
+              cr.role_code AS created_by_role,
+              (SELECT e.remarks FROM grievance_events e
+               WHERE e.grievance_id = g.id
+                 AND e.action IN ('ASSIGNED_TO_DIVISION','REVERTED_TO_DIVISION','COMPLETED')
+                 AND e.remarks IS NOT NULL AND TRIM(e.remarks) != ''
+               ORDER BY e.id DESC LIMIT 1) AS pro_remarks
        FROM grievances g
        JOIN districts dt ON dt.id = g.district_id
        JOIN grievance_types gt ON gt.id = g.grievance_type_id
@@ -232,12 +332,9 @@ exports.list = async (req, res, next) => {
 exports.dashboard = async (req, res, next) => {
   try {
     const groupBy = String(req.query.group_by || 'status').toLowerCase();
-    const params = [];
+    let params = [];
     let where = 'WHERE 1=1';
-    if (req.user.role_code === 'divisional_manager') {
-      where += ' AND (g.assigned_dm_id = ? OR g.division_id = ? OR g.created_by_staff_id = ?)';
-      params.push(req.user.id, req.user.division_id, req.user.id);
-    }
+    ({ where, params } = applyStaffScope(req.user, where, params));
     if (req.query.district_id) {
       where += ' AND g.district_id = ?';
       params.push(req.query.district_id);
@@ -257,14 +354,95 @@ exports.dashboard = async (req, res, next) => {
          SUM(g.status = 'PENDING') AS pending,
          SUM(g.status = 'COMPLETED') AS completed,
          SUM(g.stage = 'WITH_DIVISION' AND g.due_date IS NOT NULL AND g.due_date < CURDATE()) AS overdue,
+         SUM(DATE_FORMAT(g.created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')) AS this_month,
          COUNT(*) AS total
        FROM grievances g ${where}`,
       params
     );
 
-    let slices = [];
-    if (groupBy === 'district') {
-      const [rows] = await pool.query(
+    // 1. Status distribution
+    const status_slices = [
+      { name: 'Completed', value: Number(counts[0].completed || 0) },
+      { name: 'Pending', value: Number(counts[0].pending || 0) },
+      ...(Number(counts[0].created || 0) > 0
+        ? [{ name: 'Created', value: Number(counts[0].created || 0) }]
+        : []),
+    ];
+
+    // 2. Division distribution
+    const [divRows] = await pool.query(
+      `SELECT COALESCE(dv.name, 'Unassigned') AS name, COUNT(*) AS value
+       FROM grievances g
+       LEFT JOIN divisions dv ON dv.id = g.division_id
+       ${where}
+       GROUP BY dv.id, dv.name
+       ORDER BY value DESC, name`,
+      params
+    );
+    const division_slices = divRows.map((r) => ({ name: r.name, value: Number(r.value) }));
+
+    // 3. Monthly registration distribution (recent months in chronological order)
+    const [monthRows] = await pool.query(
+      `SELECT DATE_FORMAT(g.created_at, '%b %Y') AS name,
+              DATE_FORMAT(g.created_at, '%Y-%m') AS ym,
+              COUNT(*) AS value
+       FROM grievances g
+       ${where}
+       GROUP BY ym, name
+       ORDER BY ym ASC
+       LIMIT 12`,
+      params
+    );
+    const monthly_slices = monthRows.map((r) => ({ name: r.name, value: Number(r.value) }));
+
+    // 4. Timeline / Aging distribution from registration date
+    const [agingRows] = await pool.query(
+      `SELECT
+         SUM(DATEDIFF(CURDATE(), DATE(g.created_at)) <= 10) AS d_0_10,
+         SUM(DATEDIFF(CURDATE(), DATE(g.created_at)) BETWEEN 11 AND 15) AS d_11_15,
+         SUM(DATEDIFF(CURDATE(), DATE(g.created_at)) > 15) AS d_above_15
+       FROM grievances g ${where}`,
+      params
+    );
+    const timeline_slices = [
+      { name: '0 - 10 Days', value: Number(agingRows[0]?.d_0_10 || 0) },
+      { name: '11 - 15 Days', value: Number(agingRows[0]?.d_11_15 || 0) },
+      { name: '> 15 Days', value: Number(agingRows[0]?.d_above_15 || 0) },
+    ];
+
+    // 5. Repeat phone numbers (>1 grievance registered)
+    const [repeatRows] = await pool.query(
+      `SELECT
+         g.citizen_mobile AS mobile,
+         MAX(g.citizen_name) AS citizen_name,
+         COUNT(*) AS value
+       FROM grievances g
+       ${where} AND g.citizen_mobile IS NOT NULL AND g.citizen_mobile != ''
+       GROUP BY g.citizen_mobile
+       HAVING value > 1
+       ORDER BY value DESC, g.citizen_mobile ASC
+       LIMIT 15`,
+      params
+    );
+    const repeat_slices = repeatRows.map((r) => ({
+      name: `${r.mobile} (${r.citizen_name || 'Citizen'})`,
+      mobile: r.mobile,
+      citizen_name: r.citizen_name || 'Citizen',
+      value: Number(r.value),
+    }));
+
+    // Legacy slices mapping for backward compatibility if group_by query is used
+    let slices = status_slices;
+    if (groupBy === 'division') {
+      slices = division_slices;
+    } else if (groupBy === 'monthly') {
+      slices = monthly_slices;
+    } else if (groupBy === 'timeline') {
+      slices = timeline_slices;
+    } else if (groupBy === 'repeat') {
+      slices = repeat_slices;
+    } else if (groupBy === 'district') {
+      const [distRows] = await pool.query(
         `SELECT dt.name AS name, COUNT(*) AS value
          FROM grievances g
          JOIN districts dt ON dt.id = g.district_id
@@ -273,9 +451,9 @@ exports.dashboard = async (req, res, next) => {
          ORDER BY value DESC, dt.name`,
         params
       );
-      slices = rows.map((r) => ({ name: r.name, value: Number(r.value) }));
+      slices = distRows.map((r) => ({ name: r.name, value: Number(r.value) }));
     } else if (groupBy === 'grievance_type') {
-      const [rows] = await pool.query(
+      const [gtRows] = await pool.query(
         `SELECT gt.name AS name, COUNT(*) AS value
          FROM grievances g
          JOIN grievance_types gt ON gt.id = g.grievance_type_id
@@ -284,35 +462,25 @@ exports.dashboard = async (req, res, next) => {
          ORDER BY value DESC, gt.name`,
         params
       );
-      slices = rows.map((r) => ({ name: r.name, value: Number(r.value) }));
-    } else if (groupBy === 'division') {
-      const [rows] = await pool.query(
-        `SELECT COALESCE(dv.name, 'Unassigned') AS name, COUNT(*) AS value
-         FROM grievances g
-         LEFT JOIN divisions dv ON dv.id = g.division_id
-         ${where}
-         GROUP BY dv.id, dv.name
-         ORDER BY value DESC, name`,
-        params
-      );
-      slices = rows.map((r) => ({ name: r.name, value: Number(r.value) }));
-    } else {
-      slices = [
-        { name: 'Created', value: Number(counts[0].created || 0) },
-        { name: 'Pending', value: Number(counts[0].pending || 0) },
-        { name: 'Completed', value: Number(counts[0].completed || 0) },
-      ];
+      slices = gtRows.map((r) => ({ name: r.name, value: Number(r.value) }));
     }
 
     res.json({
       success: true,
       data: {
-        group_by: ['district', 'grievance_type', 'division'].includes(groupBy) ? groupBy : 'status',
+        group_by: groupBy,
         created: Number(counts[0].created || 0),
         pending: Number(counts[0].pending || 0),
         completed: Number(counts[0].completed || 0),
         overdue: Number(counts[0].overdue || 0),
+        this_month: Number(counts[0].this_month || 0),
         total: Number(counts[0].total || 0),
+        repeat_count: repeat_slices.length,
+        status_slices,
+        division_slices,
+        monthly_slices,
+        timeline_slices,
+        repeat_slices,
         slices,
       },
     });
@@ -334,7 +502,22 @@ exports.getById = async (req, res, next) => {
        ORDER BY e.id ASC`,
       [g.id]
     );
-    res.json({ success: true, data: { ...g, events } });
+    let payment = null;
+    try {
+      const latest = await getLatestPayment(g.id);
+      payment = latest ? serializePayment(latest) : null;
+    } catch {
+      payment = null;
+    }
+    res.json({
+      success: true,
+      data: {
+        ...g,
+        events,
+        payment,
+        fee_transaction_id: g.fee_transaction_id || payment?.transaction_id || null,
+      },
+    });
   } catch (err) {
     next(err);
   }
@@ -472,6 +655,15 @@ exports.assignToDivision = async (req, res, next) => {
     if (!['WITH_PRO', 'WITH_PRO_REVIEW'].includes(g.stage) && g.stage !== 'DRAFT_SAVED') {
       return res.status(400).json({ success: false, message: 'Grievance is not with PRO for assignment' });
     }
+    if (paymentMode() !== 'demo') {
+      const feePaid = await isFeePaid(g.id);
+      if (!feePaid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Collect the grievance fee before forwarding to the Divisional Manager',
+        });
+      }
+    }
     const divisionId = Number(req.body.division_id);
     if (!divisionId) {
       return res.status(400).json({ success: false, message: 'Select a Divisional Manager / division' });
@@ -489,7 +681,7 @@ exports.assignToDivision = async (req, res, next) => {
     await conn.query(
       `UPDATE grievances
        SET status = 'PENDING', stage = 'WITH_DIVISION', division_id = ?, assigned_dm_id = ?,
-           due_date = DATE_ADD(CURDATE(), INTERVAL 10 DAY)
+           due_date = DATE_ADD(CURDATE(), INTERVAL 30 DAY)
        WHERE id = ?`,
       [divisionId, dms[0].id, g.id]
     );
@@ -500,7 +692,7 @@ exports.assignToDivision = async (req, res, next) => {
       action: 'ASSIGNED_TO_DIVISION',
       fromStage: g.stage,
       toStage: 'WITH_DIVISION',
-      remarks: remarks || `Forwarded to ${dms[0].name} (10-day SLA)`,
+      remarks: remarks || `Forwarded to ${dms[0].name} (30-day SLA)`,
     });
     g.stage = 'WITH_DIVISION';
     await notify({
@@ -509,8 +701,8 @@ exports.assignToDivision = async (req, res, next) => {
       staffUserId: dms[0].id,
       title: 'Grievance assigned to Divisional Manager',
       message: remarks
-        ? `Reference ${g.reference_no} has been forwarded to ${dms[0].name}. PRO remarks: ${remarks} Action is due in 10 days. Status: Pending.`
-        : `Reference ${g.reference_no} has been forwarded to ${dms[0].name}. Action is due in 10 days. Status: Pending.`,
+        ? `Reference ${g.reference_no} has been forwarded to ${dms[0].name}. PRO remarks: ${remarks} Action is due in 30 days. Status: Pending.`
+        : `Reference ${g.reference_no} has been forwarded to ${dms[0].name}. Action is due in 30 days. Status: Pending.`,
     });
     await conn.commit();
     res.json({ success: true, data: await loadGrievance(g.id) });
@@ -538,11 +730,20 @@ exports.submitAction = async (req, res, next) => {
     if (!actionTaken) {
       return res.status(400).json({ success: false, message: 'Action Taken is required' });
     }
+    if (g.action_taken && actionTaken === String(g.action_taken).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Enter a new Action Taken. The previous remark stays as it is.',
+      });
+    }
+    const storedAction = g.action_taken
+      ? `${String(g.action_taken).trim()}\n\n[Update]\n${actionTaken}`
+      : actionTaken;
     const [pros] = await pool.query("SELECT id FROM staff_users WHERE role_code = 'pro' AND is_active = 1 LIMIT 1");
     await conn.beginTransaction();
     await conn.query(
       `UPDATE grievances SET action_taken = ?, status = 'PENDING', stage = 'WITH_PRO_REVIEW' WHERE id = ?`,
-      [actionTaken, g.id]
+      [storedAction, g.id]
     );
     await addEvent(conn, {
       grievanceId: g.id,
@@ -590,7 +791,7 @@ exports.revertToDivision = async (req, res, next) => {
     await conn.query(
       `UPDATE grievances
        SET status = 'PENDING', stage = 'WITH_DIVISION',
-           due_date = DATE_ADD(CURDATE(), INTERVAL 10 DAY)
+           due_date = DATE_ADD(CURDATE(), INTERVAL 30 DAY)
        WHERE id = ?`,
       [g.id]
     );

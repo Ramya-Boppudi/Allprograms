@@ -26,14 +26,6 @@ export default function PublicLayout() {
         <Toolbar variant="dense" sx={{ minHeight: 48, gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
           <Button color="inherit" component={RouterLink} to="/" sx={{ color: '#fff' }}>Home</Button>
           <Button color="inherit" component={RouterLink} to="/track" sx={{ color: '#fff' }}>Track / ಟ್ರ್ಯಾಕ್</Button>
-          <Button
-            variant="contained"
-            component={RouterLink}
-            to="/file"
-            sx={{ bgcolor: 'secondary.main', color: '#2b2100', '&:hover': { bgcolor: '#e0b83a' } }}
-          >
-            File grievance
-          </Button>
           <Button color="inherit" component={RouterLink} to="/staff/login" sx={{ color: '#fff' }}>Official login</Button>
         </Toolbar>
       </Box>

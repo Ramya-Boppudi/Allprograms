@@ -6,6 +6,7 @@ const staffAuthRoutes = require('./routes/staffAuthRoutes');
 const citizenAuthRoutes = require('./routes/citizenAuthRoutes');
 const masterRoutes = require('./routes/masterRoutes');
 const grievanceRoutes = require('./routes/grievanceRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const { staff: staffNoteRoutes, publicNotes } = require('./routes/notificationRoutes');
 
 const app = express();
@@ -24,6 +25,7 @@ app.use('/api/staff/auth', staffAuthRoutes);
 app.use('/api/public/auth', citizenAuthRoutes);
 app.use('/api/masters', masterRoutes);
 app.use('/api/grievances', grievanceRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/staff/notifications', staffNoteRoutes);
 app.use('/api/public/notifications', publicNotes);
 

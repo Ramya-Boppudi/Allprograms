@@ -6,18 +6,9 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { BrandLockup } from '../components/BrandLogos';
 import { useBranding } from '../context/BrandingContext';
+import { canRegisterGrievance, ROLE_LABEL } from '../config/roles';
 
 const drawerWidth = 250;
-
-const ROLE_LABEL = {
-  chairman: 'Chairman',
-  ceo: 'Chief Executive Officer',
-  aceo: 'Additional CEO',
-  cao: 'Chief Accounts Officer',
-  asst_secretary: 'Assistant Secretary',
-  pro: 'Public Relation Officer',
-  divisional_manager: 'Divisional Manager',
-};
 
 export default function StaffLayout() {
   const { user, logout } = useAuth();
@@ -26,7 +17,10 @@ export default function StaffLayout() {
 
   const items = [
     { to: '/staff/dashboard', label: 'Dashboard' },
-    { to: '/staff/register', label: 'Register grievance' },
+    { to: '/staff/grievances', label: 'Grievances' },
+    ...(canRegisterGrievance(user?.role_code)
+      ? [{ to: '/staff/register', label: 'Register grievance' }]
+      : []),
   ];
 
   return (

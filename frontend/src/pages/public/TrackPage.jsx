@@ -79,7 +79,7 @@ export default function TrackPage() {
             <Stepper activeStep={active} alternativeLabel sx={{ mt: 3 }}>
               <Step><StepLabel>Created</StepLabel></Step>
               <Step><StepLabel>With PRO</StepLabel></Step>
-              <Step><StepLabel>With Division (10 days)</StepLabel></Step>
+              <Step><StepLabel>With Division (30 days)</StepLabel></Step>
               <Step><StepLabel>PRO review</StepLabel></Step>
               <Step><StepLabel>Completed</StepLabel></Step>
             </Stepper>
